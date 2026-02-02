@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Jujutsu Kaisen: Gojo & Inumaki</title>
+    <style>
+        /* CORE STYLES */
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; touch-action: none; }
+        canvas { display: block; position: fixed; inset: 0; transition: filter 0.5s; }
+        
+        /* === INUMAKI EFFECTS === */
+        .blurred { filter: blur(12px) contrast(1.2); }
+        #screen-pulse {
+            position: fixed; inset: 0; pointer-events: none; z-index: 5;
+            background: radial-gradient(circle, transparent 40%, rgba(255, 0, 0, 0.4) 100%);
+            opacity: 0; transition: opacity 0.5s;
+        }
+        .pulsing { animation: pulse-red 1.5s infinite alternate; opacity: 1 !important; }
+        @keyframes pulse-red { 0% { opacity: 0.3; } 100% { opacity: 0.8; } }
+
+        #splatter-layer { 
+            position: fixed; inset: 0; pointer-events: none; z-index: 6; 
+            perspective: 1000px; display: flex; align-items: center; justify-content: center;
+        }
+        .splat {
+            position: absolute; background: rgba(160, 0, 0, 0.9);
+            border-radius: 43% 57% 72% 28% / 59% 41% 59% 41%;
+            filter: blur(4px); transform: rotateX(75deg) scale(0);
+            animation: splat-grow 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            box-shadow: 0 0 20px rgba(100, 0, 0, 0.6);
+            transition: opacity 0.8s ease;
+        }
+        @keyframes splat-grow { to { transform: rotateX(75deg) rotateZ(var(--rv)) scale(1); } }
+
+        #collar-container {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 55%;
+            background: #0d0d16; border-top: 10px solid #1a1a2a;
+            z-index: 100; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; justify-content: center; box-shadow: 0 -20px 50px rgba(0,0,0,0.9);
+            transform: translateY(110%); /* Hidden by default */
+        }
+        #collar-container.active { transform: translateY(0%); }
+        #collar-container.lowered { transform: translateY(85%); }
+        #zipper { width: 6px; height: 100%; background: #222; position: relative; border-left: 1px solid #444; }
+        #zipper-pull { width: 24px; height: 35px; background: #777; position: absolute; top: -15px; left: -10px; border-radius: 4px; border: 2px solid #999; }
+
+        #speech-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 110; display: flex; align-items: center; justify-content: center; }
+        .word-fx {
+            position: absolute; color: white; font-weight: 900; font-size: 30px;
+            text-shadow: 0 0 20px #ff0000; animation: shout 0.7s ease-out forwards;
+            letter-spacing: 8px; font-style: italic;
+        }
+        .word-safe { text-shadow: 0 0 20px #00ff88 !important; color: #00ff88 !important; }
+        @keyframes shout {
+            0% { transform: scale(0.5) rotate(-5deg); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: scale(8) rotate(5deg); opacity: 0; }
+        }
+
+        /* === SHARED HUD === */
+        #hud-container { position: fixed; left: 20px; bottom: 20px; color: white; text-shadow: 2px 2px #000; z-index: 150; pointer-events: none; }
+        .bar-bg { width: 150px; height: 6px; background: rgba(0,0,0,0.7); border: 1px solid #444; margin-top: 5px; }
+        
+        #gojo-hud { display: block; }
+        #cd-fill { width: 0%; height: 100%; background: #c040ff; }
+        #dash-fill { width: 0%; height: 100%; background: #4080ff; }
+        
+        #inumaki-hud { display: none; }
+        .status-tag { background: #ff4444; padding: 4px 12px; font-size: 14px; font-weight: bold; border-radius: 4px; display: inline-block; margin-bottom: 5px; }
+        .tag-open { background: #00ff88; color: black; }
+        #strain-fill { width: 0%; height: 100%; background: #ff3333; transition: width 0.3s; }
+        #strain-text { font-size: 10px; margin-top: 5px; color: #ff6666; font-weight: bold; }
+
+        #swap-notif {
+            position: fixed; top: 20px; right: 20px; color: white; background: rgba(0,0,0,0.5); 
+            padding: 10px; border: 1px solid white; z-index: 200; font-size: 12px;
+        }
+
+        /* === HAND & CROSSHAIR === */
+        #hand-container { position: fixed; right: 10%; bottom: -10px; width: 140px; height: 220px; pointer-events: none; z-index: 90; perspective: 1000px; transition: all 0.5s; }
+        #hand {
+            position: absolute; bottom: 0; width: 100%; height: 100%;
+            background: linear-gradient(to top, #eac086, #ffdbac);
+            border-radius: 50px 50px 20px 20px; border: 3px solid #c68642;
+            transform: rotateX(20deg) rotateZ(-8deg); transition: transform 0.1s ease-out;
+        }
+        .finger { position: absolute; background: #ffdbac; border: 2px solid #c68642; border-radius: 15px; width: 28px; height: 80px; top: -50px; }
+        .f1 { left: 10px; height: 60px; top: -30px; } .f2 { left: 45px; height: 85px; top: -55px; }
+        .f3 { left: 80px; height: 75px; top: -45px; } .f4 { left: 110px; height: 60px; top: -25px; }
+        
+        #hand-container.casting { right: 50%; bottom: 25%; transform: translateX(50%) scale(1.4) rotateZ(0deg) !important; }
+        .casting .f2 { transform: translateX(12px) translateY(8px) rotate(20deg); z-index: 2; }
+        .casting .f3 { transform: translateX(-12px) translateY(8px) rotate(-20deg); z-index: 1; }
+
+        #crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; z-index: 100; }
+        #crosshair:before, #crosshair:after { content: ''; position: absolute; background: lime; }
+        #crosshair:before { width: 2px; height: 100%; left: 7px; }
+        #crosshair:after { height: 2px; width: 100%; top: 7px; }
+
+        /* === MOBILE CONTROLS (NEW) === */
+        #mobile-controls { display: none; }
+        @media (max-width: 1024px) {
+            #mobile-controls { display: block; }
+            #crosshair { display: none; }
+        }
+        #joy-zone { position: fixed; bottom: 40px; left: 40px; width: 120px; height: 120px; z-index: 200; }
+        #joy-base { width: 100px; height: 100px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; backdrop-filter: blur(5px); }
+        #joy-stick { position: absolute; top: 30px; left: 30px; width: 40px; height: 40px; background: #fff; border-radius: 50%; box-shadow: 0 0 15px #fff; pointer-events: none; }
+        #cam-zone { position: fixed; top: 0; right: 0; width: 60%; height: 100%; z-index: 190; }
+        #mobile-btns { position: fixed; bottom: 30px; right: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; z-index: 200; }
+        .m-btn { 
+            width: 65px; height: 65px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.4); 
+            border-radius: 50%; color: #fff; font-size: 10px; font-weight: bold; backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center; text-align: center;
+        }
+        .m-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.9); }
+    </style>
+</head>
+<body>
+
+<canvas id="glcanvas"></canvas>
+<div id="screen-pulse"></div>
+<div id="splatter-layer"></div>
+<div id="speech-overlay"></div>
+<div id="crosshair"></div>
+<div id="swap-notif">[1] SATORU GOJO | [2] TOGE INUMAKI</div>
+
+<div id="mobile-controls">
+    <div id="joy-zone"><div id="joy-base"></div><div id="joy-stick"></div></div>
+    <div id="cam-zone"></div>
+    <div id="mobile-btns">
+        <div class="m-btn" id="m-atk">ATTACK</div>
+        <div class="m-btn" id="m-abil">SKILL 1</div>
+        <div class="m-btn" id="m-ult">ULTIMATE</div>
+        <div class="m-btn" id="m-jump">JUMP</div>
+        <div class="m-btn" id="m-swap" style="grid-column: span 2; height: 40px; border-radius: 20px;">SWAP CHAR</div>
+    </div>
+</div>
+
+<div id="collar-container">
+    <div id="zipper"><div id="zipper-pull"></div></div>
+</div>
+
+<div id="hud-container">
+    <div id="gojo-hud">
+        <div style="font-size: 18px; color: #7cf5ff; font-weight: bold;">SATORU GOJO</div>
+        <div style="font-size: 11px; opacity: 0.8; margin-bottom:5px;">[R] DOMAIN | [F] RED | [B] BLUE | [L] PURPLE</div>
+        <div class="bar-bg"><div id="cd-fill"></div></div>
+        <div style="font-size: 10px; margin-top: 5px; opacity: 0.7;">DASH CD</div>
+        <div class="bar-bg"><div id="dash-fill"></div></div>
+    </div>
+
+    <div id="inumaki-hud">
+        <div id="status" class="status-tag">COLLAR: SEALED</div>
+        <div style="font-size: 18px; margin: 5px 0; font-weight:bold;">TOGE INUMAKI</div>
+        <div style="font-size: 11px; opacity: 0.8;">[G] ZIP | [F] BLAST | [B] STOP | [CLICK] SAFE</div>
+        <div class="bar-bg"><div id="inumaki-dash-fill" style="width:0%; height:100%; background:#00ff88;"></div></div>
+        <div class="bar-bg"><div id="strain-fill"></div></div>
+        <div id="strain-text">THROAT STRAIN</div>
+    </div>
+</div>
+
+<div id="hand-container">
+    <div id="hand">
+        <div class="finger f1"></div><div class="finger f2"></div>
+        <div class="finger f3"></div><div class="finger f4"></div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+<script>
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl');
+const handContainer = document.getElementById('hand-container');
+const collarContainer = document.getElementById('collar-container');
+const screenPulse = document.getElementById('screen-pulse');
+const splatterLayer = document.getElementById('splatter-layer');
+
+/* === GAME STATE === */
+let currentChar = 1; 
+let camPos = [0, 15, 500], camYaw = -Math.PI/2, camPitch = 0;
+let velY = 0, isGrounded = true, jumpCount = 0;
+const keys = {};
+const projectiles = [];
+let phase = 0;
+
+/* Mobile State */
+let joyData = { x: 0, y: 0, active: false };
+let lastTouch = { x: 0, y: 0 };
+
+/* Gojo Stats */
+let lastDash = 0, isDashing = false, dashTime = 0, dashDir = [0,0];
+let lastFire = 0; const CD = 800;
+let isCastingDomain = false, domainActive = false, domainScale = 0;
+
+/* Inumaki Stats */
+let collarOpen = false;
+let throatStrain = 0, isSilenced = false;
+let collapseTimer = 0, recoveryTimer = 0;
+const speechWords = { 'red': 'BLAST AWAY!', 'blue': 'STOP!', 'safe': ['SALMON', 'KELP', 'BONITO', 'MUSTARD'] };
+
+/* === SHADERS === */
+const vsSource = `attribute vec3 position; attribute vec4 color; uniform mat4 uMVP; varying vec4 vC; void main(){ gl_Position = uMVP * vec4(position, 1.0); vC = color; gl_PointSize = 4.0; }`;
+const fsSource = `precision mediump float; varying vec4 vC; void main(){ gl_FragColor = vC; }`;
+
+function createShader(gl, type, source) { const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s); return s; }
+const program = gl.createProgram();
+gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
+gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+gl.linkProgram(program); gl.useProgram(program);
+
+const uMVP = gl.getUniformLocation(program, 'uMVP');
+const aP = gl.getAttribLocation(program, 'position');
+const aC = gl.getAttribLocation(program, 'color');
+gl.enableVertexAttribArray(aP); gl.enableVertexAttribArray(aC);
+
+/* === GEOMETRY === */
+const worldPos = [], worldCol = [], worldIdx = [];
+let off = 0;
+const hitboxes = [];
+
+function addBox(x, y, z, w, h, d, c, isSolid=true) {
+    const hw=w/2, hh=h/2, hd=d/2;
+    worldPos.push(x-hw,y-hh,z+hd, x+hw,y-hh,z+hd, x+hw,y+hh,z+hd, x-hw,y+hh,z+hd, x-hw,y-hh,z-hd, x-hw,y+hh,z-hd, x+hw,y+hh,z-hd, x+hw,y-hh,z-hd, x-hw,y+hh,z-hd, x-hw,y+hh,z+hd, x+hw,y+hh,z+hd, x+hw,y+hh,z-hd, x-hw,y-hh,z-hd, x+hw,y-hh,z-hd, x+hw,y-hh,z+hd, x-hw,y-hh,z+hd);
+    for(let i=0; i<16; i++) worldCol.push(c[0], c[1], c[2], 1.0);
+    [0,1,2,0,2,3, 4,5,6,4,6,7, 8,9,10,8,10,11, 12,13,14,12,14,15].forEach(i => worldIdx.push(i+off));
+    off += 16;
+    if(isSolid) hitboxes.push({ minX: x-hw, maxX: x+hw, minY: y-hh, maxY: y+hh, minZ: z-hd, maxZ: z+hd });
+}
+
+addBox(0, -1, 0, 2000, 2, 2000, [0.1, 0.25, 0.1], true);
+addBox(0, 0, 0, 300, 1.5, 500, [0.4, 0.4, 0.45], false);
+const C_WALL = [0.8, 0.75, 0.7], C_ROOF = [0.15, 0.15, 0.2], C_TORII = [0.8, 0.1, 0.1];
+addBox(0, 40, -350, 180, 80, 100, C_WALL);
+addBox(0, 85, -350, 200, 10, 120, C_ROOF);
+addBox(0, 120, -350, 120, 60, 80, C_WALL);
+addBox(0, 155, -350, 140, 10, 100, C_ROOF);
+function addTorii(x,z) { addBox(x-30,40,z,10,80,10,C_TORII); addBox(x+30,40,z,10,80,10,C_TORII); addBox(x,85,z,90,10,12,C_TORII); }
+addTorii(0, 450); addTorii(0, 200);
+
+const wPB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,wPB); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(worldPos),gl.STATIC_DRAW);
+const wCB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,wCB); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(worldCol),gl.STATIC_DRAW);
+const wIB=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,wIB); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(worldIdx),gl.STATIC_DRAW);
+
+const spherePos = [], sphereIdx = [];
+const colRed=[], colBlue=[], colPurp=[], colWhite=[], colBlack=[], colHor=[];
+const latB=20, lonB=20;
+for(let y=0; y<=latB; y++){
+    let theta=y*Math.PI/latB, sinT=Math.sin(theta), cosT=Math.cos(theta);
+    for(let x=0; x<=lonB; x++){
+        let phi=x*2*Math.PI/lonB;
+        spherePos.push(Math.cos(phi)*sinT, cosT, Math.sin(phi)*sinT);
+        colRed.push(1,0.1,0.1,1); colBlue.push(0.1,0.4,1,1); colPurp.push(0.8,0.2,1,1); 
+        colWhite.push(1,1,1,1); colBlack.push(0,0,0,1); colHor.push(0.8,0.9,1,0.4);
+    }
+}
+for(let y=0; y<latB; y++){
+    for(let x=0; x<lonB; x++){
+        let f=(y*(lonB+1))+x, s=f+lonB+1;
+        sphereIdx.push(f,s,f+1, s,s+1,f+1);
+    }
+}
+const sPB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,sPB); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(spherePos),gl.STATIC_DRAW);
+const sIB=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,sIB); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(sphereIdx),gl.STATIC_DRAW);
+const mkBuf=(d)=>{let b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(d),gl.STATIC_DRAW);return b;}
+const bRed=mkBuf(colRed), bBlue=mkBuf(colBlue), bPurp=mkBuf(colPurp), bWhite=mkBuf(colWhite), bBlack=mkBuf(colBlack), bHor=mkBuf(colHor);
+
+const starPos=[], starCol=[];
+for(let i=0; i<3000; i++){
+    let r=1800, t=Math.random()*Math.PI*2, p=Math.acos(2*Math.random()-1);
+    starPos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
+    let b=0.6+Math.random()*0.4; starCol.push(b,b,1,1);
+}
+const stPB=mkBuf(starPos), stCB=mkBuf(starCol);
+
+/* === PHYSICS === */
+function checkCollision(nx, ny, nz) {
+    const r=4;
+    for(let b of hitboxes) {
+        if(nx+r > b.minX && nx-r < b.maxX && ny+r > b.minY && ny-r < b.maxY && nz+r > b.minZ && nz-r < b.maxZ) return true;
+    }
+    return false;
+}
+
+/* === ABILITIES === */
+function spawnProjectile(type, speed, scale, colorBuf) {
+    const fx = Math.cos(camYaw) * Math.cos(camPitch);
+    const fy = Math.sin(camPitch);
+    const fz = Math.sin(camYaw) * Math.cos(camPitch);
+    const sx = Math.cos(camYaw + Math.PI/2), sz = Math.sin(camYaw + Math.PI/2);
+    const spawn = [camPos[0] + (sx * 10) + (fx * 15), camPos[1] - 2 + (fy * 15), camPos[2] + (sz * 10) + (fz * 15)];
+    projectiles.push({ type, pos: spawn, vel: [fx*speed, fy*speed, fz*speed], life: 200, scale, color: colorBuf });
+    const hand = document.getElementById('hand');
+    hand.style.transform = 'rotateX(40deg) rotateZ(-8deg) translateY(10px)';
+    setTimeout(() => hand.style.transform = 'rotateX(20deg) rotateZ(-8deg) translateY(0px)', 100);
+}
+
+function gojoShoot(type) {
+    if(Date.now() - lastFire < CD && type !== 'punch') return;
+    if(type !== 'punch') lastFire = Date.now();
+    let speed = type === 'punch' ? 4 : 10;
+    let scale = type === 'purple' ? 8 : (type === 'punch' ? 1 : 1.8);
+    let buf = type==='red'?bRed : type==='blue'?bBlue : type==='purple'?bPurp : bWhite;
+    spawnProjectile(type, speed, scale, buf);
+}
+
+function triggerDomain() {
+    if(!domainActive && !isCastingDomain) {
+        isCastingDomain = true; handContainer.classList.add('casting');
+        setTimeout(() => { domainActive = true; domainScale = 0; }, 600);
+        setTimeout(() => { handContainer.classList.remove('casting'); isCastingDomain = false; }, 1000);
+    } else if (domainActive) domainActive = false;
+}
+
+function inumakiSpeech(type) {
+    if(isSilenced) return;
+    if(type !== 'safe' && !collarOpen) return;
+    if(type !== 'safe') {
+        throatStrain += 35;
+        if(throatStrain >= 100) {
+            throatStrain = 100; isSilenced = true; collapseTimer = 300;
+            canvas.classList.add('blurred'); screenPulse.classList.add('pulsing');
+            for(let i=0; i<35; i++){
+                const s = document.createElement('div'); s.className = 'splat';
+                let size = 100 + Math.random()*200; s.style.width=size+'px'; s.style.height=size*0.5+'px';
+                s.style.setProperty('--rv', (Math.random()*360)+'deg');
+                let ang = Math.random()*6.28, dist=Math.random()*300;
+                s.style.marginLeft = Math.cos(ang)*dist+'px'; s.style.marginTop = (Math.sin(ang)*dist+180)+'px';
+                splatterLayer.appendChild(s);
+            }
+        }
+    }
+    const w = document.createElement('div');
+    w.className = type === 'safe' ? 'word-fx word-safe' : 'word-fx';
+    w.innerText = type === 'safe' ? speechWords.safe[Math.floor(Math.random()*4)] : speechWords[type];
+    document.getElementById('speech-overlay').appendChild(w);
+    setTimeout(()=>w.remove(), 700);
+    if(type !== 'safe') spawnProjectile(type, 15, 2.5, type==='red'?bRed : bBlue);
+}
+
+function toggleCollar() {
+    collarOpen = !collarOpen;
+    collarContainer.className = collarOpen ? 'active lowered' : 'active';
+    document.getElementById('status').innerText = collarOpen ? "COLLAR: OPEN" : "COLLAR: SEALED";
+    document.getElementById('status').className = collarOpen ? 'status-tag tag-open' : 'status-tag';
+}
+
+function swapCharacter(id) {
+    if (id === currentChar) return;
+    currentChar = id;
+    document.getElementById('gojo-hud').style.display = id === 1 ? 'block' : 'none';
+    document.getElementById('inumaki-hud').style.display = id === 2 ? 'block' : 'none';
+    if(id === 1) {
+        collarContainer.className = ''; canvas.classList.remove('blurred');
+        screenPulse.classList.remove('pulsing'); splatterLayer.innerHTML = ''; 
+        isSilenced = false; throatStrain = 0; collapseTimer = 0;
+    } else {
+        collarContainer.className = collarOpen ? 'active lowered' : 'active';
+        domainActive = false; isCastingDomain = false; handContainer.classList.remove('casting');
+    }
+}
+
+/* === CONTROLS & MOBILE LOGIC === */
+const joyBase = document.getElementById('joy-base');
+const joyStick = document.getElementById('joy-stick');
+const camZone = document.getElementById('cam-zone');
+
+// ROBLOX CAM
+camZone.addEventListener('touchstart', e => { lastTouch.x = e.touches[0].clientX; lastTouch.y = e.touches[0].clientY; });
+camZone.addEventListener('touchmove', e => {
+    if(collapseTimer > 0) return;
+    const dx = e.touches[0].clientX - lastTouch.x;
+    const dy = e.touches[0].clientY - lastTouch.y;
+    camYaw += dx * 0.005;
+    camPitch = Math.max(-1.4, Math.min(1.4, camPitch - dy * 0.005));
+    lastTouch.x = e.touches[0].clientX; lastTouch.y = e.touches[0].clientY;
+});
+
+// JOYSTICK
+joyBase.addEventListener('touchstart', e => { joyData.active = true; });
+window.addEventListener('touchmove', e => {
+    if(!joyData.active) return;
+    const touch = [...e.touches].find(t => t.target.closest('#joy-zone'));
+    if(!touch) return;
+    const rect = joyBase.getBoundingClientRect();
+    const cx = rect.left + 50, cy = rect.top + 50;
+    let dx = touch.clientX - cx, dy = touch.clientY - cy;
+    const dist = Math.min(Math.sqrt(dx*dx+dy*dy), 50);
+    const angle = Math.atan2(dy, dx);
+    joyData.x = (Math.cos(angle) * dist) / 50;
+    joyData.y = (Math.sin(angle) * dist) / 50;
+    joyStick.style.transform = `translate(${joyData.x*50}px, ${joyData.y*50}px)`;
+});
+window.addEventListener('touchend', () => { joyData.active = false; joyData.x = 0; joyData.y = 0; joyStick.style.transform = 'none'; });
+
+// MOBILE BUTTONS
+document.getElementById('m-jump').ontouchstart = () => { if(isGrounded || jumpCount < 2) { velY = 2.0; isGrounded = false; jumpCount++; } };
+document.getElementById('m-swap').ontouchstart = () => swapCharacter(currentChar === 1 ? 2 : 1);
+document.getElementById('m-atk').ontouchstart = () => currentChar === 1 ? gojoShoot('punch') : inumakiSpeech('safe');
+document.getElementById('m-abil').ontouchstart = () => currentChar === 1 ? gojoShoot('red') : toggleCollar();
+document.getElementById('m-ult').ontouchstart = () => currentChar === 1 ? triggerDomain() : inumakiSpeech('red');
+
+window.addEventListener('keydown', e => {
+    if(e.key === '1') swapCharacter(1); if(e.key === '2') swapCharacter(2);
+    keys[e.code] = true;
+    if(e.code === 'Space' && (isGrounded || jumpCount < 2)) { velY = 2.0; isGrounded = false; jumpCount++; }
+    if(currentChar === 1) {
+        if(e.code === 'ShiftLeft' && Date.now() - lastDash > 500) {
+            isDashing = true; dashTime = 0.15; lastDash = Date.now();
+            let dx=0, dz=0;
+            if(keys['KeyW']) { dx += Math.cos(camYaw); dz += Math.sin(camYaw); }
+            if(keys['KeyS']) { dx -= Math.cos(camYaw); dz -= Math.sin(camYaw); }
+            if(dx===0 && dz===0) { dx=Math.cos(camYaw); dz=Math.sin(camYaw); }
+            let mag = Math.sqrt(dx*dx+dz*dz); dashDir = [dx/mag, dz/mag];
+        }
+        if(e.key.toLowerCase() === 'r') triggerDomain();
+        if(e.key.toLowerCase() === 'f') gojoShoot('red');
+        if(e.key.toLowerCase() === 'b') gojoShoot('blue');
+        if(e.key.toLowerCase() === 'l') gojoShoot('purple');
+    } else {
+        if(e.code === 'KeyG') toggleCollar();
+        if(e.key.toLowerCase() === 'f') inumakiSpeech('red');
+        if(e.key.toLowerCase() === 'b') inumakiSpeech('blue');
+    }
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+canvas.addEventListener('mousedown', () => {
+    if(document.pointerLockElement !== canvas) canvas.requestPointerLock();
+    else { if(currentChar === 1) gojoShoot('punch'); else inumakiSpeech('safe'); }
+});
+window.addEventListener('mousemove', e => {
+    if(document.pointerLockElement === canvas && collapseTimer <= 0) {
+        camYaw += e.movementX * 0.002; camPitch = Math.max(-1.4, Math.min(1.4, camPitch - e.movementY * 0.002));
+    }
+});
+
+/* === RENDER === */
+const projM = mat4.create(), viewM = mat4.create(), mvpM = mat4.create(), modelM = mat4.create();
+
+function render() {
+    if(canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    gl.clearColor(0.05, 0.05, 0.1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+
+    if(currentChar === 2 && collapseTimer > 0) {
+        collapseTimer--; camPitch = collapseTimer > 100 ? -1.4 : camPitch + (0-camPitch)*0.04;
+        if(collapseTimer === 1) { isSilenced = false; throatStrain = 0; canvas.classList.remove('blurred'); screenPulse.classList.remove('pulsing'); document.querySelectorAll('.splat').forEach(s => s.remove()); }
+        velY = -0.5;
+    } else {
+        let speed = (currentChar === 2 && keys['ShiftLeft']) ? 2.5 : 1.5;
+        if(isDashing) speed = 6.0;
+        let mx = 0, mz = 0;
+        if(isDashing) { mx = dashDir[0]*speed; mz = dashDir[1]*speed; dashTime -= 0.016; if(dashTime <= 0) isDashing = false; }
+        else if (joyData.active) {
+            mx = (Math.cos(camYaw) * -joyData.y + Math.cos(camYaw + 1.57) * joyData.x) * speed;
+            mz = (Math.sin(camYaw) * -joyData.y + Math.sin(camYaw + 1.57) * joyData.x) * speed;
+        } else {
+            if(keys['KeyW']) { mx += Math.cos(camYaw)*speed; mz += Math.sin(camYaw)*speed; }
+            if(keys['KeyS']) { mx -= Math.cos(camYaw)*speed; mz -= Math.sin(camYaw)*speed; }
+            if(keys['KeyA']) { mx -= Math.cos(camYaw+1.57)*speed; mz -= Math.sin(camYaw+1.57)*speed; }
+            if(keys['KeyD']) { mx += Math.cos(camYaw+1.57)*speed; mz += Math.sin(camYaw+1.57)*speed; }
+        }
+        if(!checkCollision(camPos[0]+mx, camPos[1], camPos[2])) camPos[0]+=mx;
+        if(!checkCollision(camPos[0], camPos[1], camPos[2]+mz)) camPos[2]+=mz;
+        velY -= 0.08; camPos[1] += velY;
+        if(camPos[1] <= 15) { camPos[1] = 15; velY=0; isGrounded=true; jumpCount=0; }
+        else if(checkCollision(camPos[0], camPos[1], camPos[2])) { camPos[1]-=velY; velY=0; }
+    }
+
+    document.getElementById('cd-fill').style.width = currentChar === 1 ? Math.max(0, (1 - (Date.now()-lastFire)/CD)*100) + "%" : "0%";
+    if(currentChar === 2) { document.getElementById('strain-fill').style.width = throatStrain + "%"; if(throatStrain > 0 && collapseTimer <= 0) throatStrain -= 0.1; }
+
+    phase += 0.02;
+    if(!isCastingDomain) handContainer.style.transform = `translateY(${Math.sin(phase*4)*8}px) rotateZ(-8deg)`;
+
+    mat4.perspective(projM, 45*Math.PI/180, canvas.width/canvas.height, 0.1, 5000);
+    mat4.lookAt(viewM, camPos, [camPos[0]+Math.cos(camYaw)*Math.cos(camPitch), camPos[1]+Math.sin(camPitch), camPos[2]+Math.sin(camYaw)*Math.cos(camPitch)], [0,1,0]);
+    mat4.multiply(mvpM, projM, viewM);
+
+    if(domainActive) {
+        if(domainScale < 1) domainScale += 0.04;
+        gl.bindBuffer(gl.ARRAY_BUFFER, stPB); gl.vertexAttribPointer(aP, 3, gl.FLOAT, false,0,0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, stCB); gl.vertexAttribPointer(aC, 4, gl.FLOAT, false,0,0);
+        mat4.identity(modelM); mat4.translate(modelM, modelM, camPos); mat4.rotateY(modelM, modelM, phase*0.1);
+        mat4.multiply(mvpM, projM, mat4.multiply(mat4.create(), viewM, modelM));
+        gl.uniformMatrix4fv(uMVP, false, mvpM); gl.drawArrays(gl.POINTS, 0, 3000);
+    } else {
+        gl.bindBuffer(gl.ARRAY_BUFFER, wPB); gl.vertexAttribPointer(aP, 3, gl.FLOAT, false,0,0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, wCB); gl.vertexAttribPointer(aC, 4, gl.FLOAT, false,0,0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, wIB);
+        mat4.multiply(mvpM, projM, viewM); gl.uniformMatrix4fv(uMVP, false, mvpM);
+        gl.drawElements(gl.TRIANGLES, worldIdx.length, gl.UNSIGNED_SHORT, 0);
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, sPB); gl.vertexAttribPointer(aP, 3, gl.FLOAT, false,0,0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sIB);
+    for(let i = projectiles.length-1; i>=0; i--) {
+        let p = projectiles[i]; p.pos[0]+=p.vel[0]; p.pos[1]+=p.vel[1]; p.pos[2]+=p.vel[2]; p.life--;
+        if(p.life <= 0 || p.pos[1] < 0) { projectiles.splice(i,1); continue; }
+        gl.bindBuffer(gl.ARRAY_BUFFER, p.color); gl.vertexAttribPointer(aC, 4, gl.FLOAT, false,0,0);
+        mat4.identity(modelM); mat4.translate(modelM, modelM, p.pos); mat4.scale(modelM, modelM, [p.scale, p.scale, p.scale]);
+        mat4.multiply(mvpM, projM, mat4.multiply(mat4.create(), viewM, modelM));
+        gl.uniformMatrix4fv(uMVP, false, mvpM); gl.drawElements(gl.TRIANGLES, sphereIdx.length, gl.UNSIGNED_SHORT, 0);
+    }
+    requestAnimationFrame(render);
+}
+render();
+</script>
+</body>
+</html>
